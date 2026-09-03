@@ -1,1 +1,6 @@
-https://mwsf.bankalfalah.com/DataserviceCore/Initialize/InitializeApp
+https://mwsa.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
+https://ms.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
+https://mwsb.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
+https://mwsc.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
+https://mwsf.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
+https://mst.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
