@@ -36,9 +36,11 @@ while (true)
     {
         Console.WriteLine("Invalid choice.");
         Console.WriteLine("Please enter 1 or 2.");
+
         Console.WriteLine();
         Console.Write("Press any key to continue...");
         Console.ReadKey();
+
         continue;
     }
 
@@ -46,11 +48,11 @@ while (true)
     Console.WriteLine("========================================");
     Console.WriteLine("Do you want to proceed more?");
     Console.WriteLine();
-    Console.WriteLine("5. Proceed");
+    Console.WriteLine("1. Proceed");
     Console.WriteLine("0. Leave");
     Console.WriteLine();
 
-    Console.Write("Enter your choice (5 or 0): ");
+    Console.Write("Enter your choice (1 or 0): ");
 
     var proceedChoice = Console.ReadLine();
 
@@ -59,13 +61,15 @@ while (true)
         Console.WriteLine();
         Console.WriteLine("Thank you for using URL Utility.");
         Console.WriteLine("Goodbye!");
+
         break;
     }
 
-    if (proceedChoice != "5")
+    if (proceedChoice != "1")
     {
         Console.WriteLine();
         Console.WriteLine("Invalid choice. Exiting...");
+
         break;
     }
 }
