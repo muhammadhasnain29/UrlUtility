@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 
 namespace UrlUtility.Services;
@@ -13,19 +14,39 @@ public class UrlRunnerService
         {
             Timeout = TimeSpan.FromSeconds(30)
         };
+
+        _httpClient.DefaultRequestHeaders.TryAddWithoutValidation(
+            "Accept",
+            "application/json"
+        );
     }
 
     public async Task RunInitializeAsync()
     {
-        const string fileName = "urls.txt";
+        const string urlFileName = "urls.txt";
+        const string requestFileName = "request.json";
 
-        if (!File.Exists(fileName))
+        // ==========================================
+        // CHECK FILES
+        // ==========================================
+
+        if (!File.Exists(urlFileName))
         {
             Console.WriteLine("ERROR: urls.txt file does not exist.");
             return;
         }
 
-        var urls = File.ReadAllLines(fileName)
+        if (!File.Exists(requestFileName))
+        {
+            Console.WriteLine("ERROR: request.json file does not exist.");
+            return;
+        }
+
+        // ==========================================
+        // READ URLS
+        // ==========================================
+
+        var urls = File.ReadAllLines(urlFileName)
             .Where(url => !string.IsNullOrWhiteSpace(url))
             .Select(url => url.Trim())
             .ToList();
@@ -36,179 +57,137 @@ public class UrlRunnerService
             return;
         }
 
-        Console.WriteLine("========================================");
-        Console.WriteLine("          INITIALIZE STARTED");
-        Console.WriteLine("========================================");
+        // ==========================================
+        // READ REQUEST BODY
+        // ==========================================
+
+        string requestBody = await File.ReadAllTextAsync(requestFileName);
+
+        // ==========================================
+        // VALIDATE JSON
+        // ==========================================
+
+        try
+        {
+            using JsonDocument document =
+                JsonDocument.Parse(requestBody);
+        }
+        catch (JsonException)
+        {
+            Console.WriteLine(
+                "ERROR: request.json contains invalid JSON."
+            );
+
+            return;
+        }
+
+        // ==========================================
+        // HEADER
+        // ==========================================
+
+        Console.WriteLine();
+        Console.WriteLine("============================================================");
+        Console.WriteLine("                  INITIALIZE STARTED");
+        Console.WriteLine("============================================================");
         Console.WriteLine();
 
         Console.WriteLine($"Total URLs found: {urls.Count}");
         Console.WriteLine();
 
-        // Run all URLs at the same time
-        var tasks = urls.Select(ExecuteUrlAsync).ToList();
+        // ==========================================
+        // SEND ALL REQUESTS
+        // ==========================================
 
-        // Wait for ALL URLs
+        var tasks = urls
+            .Select(url => ExecuteUrlAsync(url, requestBody))
+            .ToList();
+
+        // IMPORTANT:
+        // We wait for ALL requests first.
+        // Nothing is printed from ExecuteUrlAsync().
         var results = await Task.WhenAll(tasks);
 
         // ==========================================
-        // FINAL SUMMARY TABLE
+        // PRINT RESULTS IN URL ORDER
         // ==========================================
 
-        Console.WriteLine();
-        Console.WriteLine();
-        Console.WriteLine("==============================================================");
-        Console.WriteLine("                     FINAL RESULTS");
-        Console.WriteLine("==============================================================");
-        Console.WriteLine();
-
-        Console.WriteLine(
-            "{0,-8} {1,-10} {2,-12} {3,-10}",
-            "SERVER",
-            "STATUS",
-            "TIME",
-            "RESULT"
-        );
-
-        Console.WriteLine(
-            "--------------------------------------------------------------"
-        );
-
-        foreach (var result in results)
+        for (int i = 0; i < results.Length; i++)
         {
-            string shortName = GetShortUrlName(result.Url);
-
-            string status = result.StatusCode > 0
-                ? result.StatusCode.ToString()
-                : result.Status;
-
-            string resultText = result.Success
-                ? "SUCCESS"
-                : "FAILED";
-
-            Console.WriteLine(
-                "{0,-8} {1,-10} {2,-12} {3,-10}",
-                shortName,
-                status,
-                $"{result.ResponseTime} ms",
-                resultText
+            PrintResult(
+                results[i],
+                i + 1
             );
         }
 
+        // ==========================================
+        // FINAL SUMMARY
+        // ==========================================
+
         Console.WriteLine();
-        Console.WriteLine(
-            "--------------------------------------------------------------"
-        );
+        Console.WriteLine("============================================================");
+        Console.WriteLine("                     FINAL SUMMARY");
+        Console.WriteLine("============================================================");
+        Console.WriteLine();
+
+        Console.WriteLine($"Total URLs : {results.Length}");
 
         int successful = results.Count(x => x.Success);
         int failed = results.Count(x => !x.Success);
 
-        Console.WriteLine($"Total:      {results.Length}");
-        Console.WriteLine($"Successful: {successful}");
-        Console.WriteLine($"Failed:     {failed}");
+        Console.WriteLine($"Successful : {successful}");
+        Console.WriteLine($"Failed     : {failed}");
 
         Console.WriteLine();
-        Console.WriteLine("==============================================================");
-        Console.WriteLine("                 INITIALIZE COMPLETED");
-        Console.WriteLine("==============================================================");
+
+        Console.WriteLine("============================================================");
+        Console.WriteLine("                  INITIALIZE COMPLETED");
+        Console.WriteLine("============================================================");
     }
 
-    private async Task<UrlResult> ExecuteUrlAsync(string url)
+    // =========================================================
+    // EXECUTE ONE URL
+    // =========================================================
+
+    private async Task<UrlResult> ExecuteUrlAsync(
+        string url,
+        string requestBody)
     {
         var stopwatch = Stopwatch.StartNew();
 
         try
         {
-            using var response = await _httpClient.GetAsync(url);
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                url
+            );
+
+            request.Content = new StringContent(
+                requestBody,
+                Encoding.UTF8,
+                "application/json"
+            );
+
+            using var response =
+                await _httpClient.SendAsync(request);
+
+            string responseBody =
+                await response.Content.ReadAsStringAsync();
 
             stopwatch.Stop();
 
-            var responseBody = await response.Content.ReadAsStringAsync();
-
-            var result = new UrlResult
+            return new UrlResult
             {
                 Url = url,
                 StatusCode = (int)response.StatusCode,
                 Status = response.StatusCode.ToString(),
                 ResponseTime = stopwatch.ElapsedMilliseconds,
-                Success = response.IsSuccessStatusCode
+                Success = response.IsSuccessStatusCode,
+                ResponseBody = responseBody
             };
-
-            // ==========================================
-            // INDIVIDUAL URL RESPONSE
-            // ==========================================
-
-            Console.WriteLine();
-            Console.WriteLine("========================================");
-            Console.WriteLine($"URL: {url}");
-            Console.WriteLine("========================================");
-
-            Console.WriteLine();
-            Console.WriteLine("------------- INITIALIZE DETAILS -------------");
-
-            Console.WriteLine($"Status Code   : {result.StatusCode}");
-            Console.WriteLine($"Status        : {result.Status}");
-            Console.WriteLine($"Response Time : {result.ResponseTime} ms");
-            Console.WriteLine($"Success       : {result.Success}");
-
-            // If API returned something
-            if (!string.IsNullOrWhiteSpace(responseBody))
-            {
-                Console.WriteLine();
-
-                try
-                {
-                    using JsonDocument document =
-                        JsonDocument.Parse(responseBody);
-
-                    Console.WriteLine("Response Body:");
-
-                    string formattedJson =
-                        JsonSerializer.Serialize(
-                            document.RootElement,
-                            new JsonSerializerOptions
-                            {
-                                WriteIndented = true
-                            }
-                        );
-
-                    Console.WriteLine(formattedJson);
-                }
-                catch (JsonException)
-                {
-                    Console.WriteLine("Response Body:");
-                    Console.WriteLine(responseBody);
-                }
-            }
-            else
-            {
-                Console.WriteLine();
-                Console.WriteLine("Response Body : No response body returned.");
-            }
-
-            Console.WriteLine("----------------------------------------------");
-
-            return result;
         }
         catch (TaskCanceledException)
         {
             stopwatch.Stop();
-
-            Console.WriteLine();
-            Console.WriteLine("========================================");
-            Console.WriteLine($"URL: {url}");
-            Console.WriteLine("========================================");
-
-            Console.WriteLine();
-            Console.WriteLine("------------- INITIALIZE DETAILS -------------");
-
-            Console.WriteLine("Status Code   : TIMEOUT");
-            Console.WriteLine("Status        : Timeout");
-            Console.WriteLine(
-                $"Response Time : {stopwatch.ElapsedMilliseconds} ms"
-            );
-            Console.WriteLine("Success       : False");
-
-            Console.WriteLine("----------------------------------------------");
 
             return new UrlResult
             {
@@ -216,30 +195,13 @@ public class UrlRunnerService
                 StatusCode = 0,
                 Status = "TIMEOUT",
                 ResponseTime = stopwatch.ElapsedMilliseconds,
-                Success = false
+                Success = false,
+                ResponseBody = "Request timed out."
             };
         }
         catch (HttpRequestException ex)
         {
             stopwatch.Stop();
-
-            Console.WriteLine();
-            Console.WriteLine("========================================");
-            Console.WriteLine($"URL: {url}");
-            Console.WriteLine("========================================");
-
-            Console.WriteLine();
-            Console.WriteLine("------------- INITIALIZE DETAILS -------------");
-
-            Console.WriteLine("Status Code   : CONNECTION ERROR");
-            Console.WriteLine("Status        : ConnectionError");
-            Console.WriteLine(
-                $"Response Time : {stopwatch.ElapsedMilliseconds} ms"
-            );
-            Console.WriteLine("Success       : False");
-            Console.WriteLine($"Error         : {ex.Message}");
-
-            Console.WriteLine("----------------------------------------------");
 
             return new UrlResult
             {
@@ -247,30 +209,13 @@ public class UrlRunnerService
                 StatusCode = 0,
                 Status = "CONNECTION ERROR",
                 ResponseTime = stopwatch.ElapsedMilliseconds,
-                Success = false
+                Success = false,
+                ResponseBody = ex.Message
             };
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
-
-            Console.WriteLine();
-            Console.WriteLine("========================================");
-            Console.WriteLine($"URL: {url}");
-            Console.WriteLine("========================================");
-
-            Console.WriteLine();
-            Console.WriteLine("------------- INITIALIZE DETAILS -------------");
-
-            Console.WriteLine("Status Code   : ERROR");
-            Console.WriteLine("Status        : Error");
-            Console.WriteLine(
-                $"Response Time : {stopwatch.ElapsedMilliseconds} ms"
-            );
-            Console.WriteLine("Success       : False");
-            Console.WriteLine($"Error         : {ex.Message}");
-
-            Console.WriteLine("----------------------------------------------");
 
             return new UrlResult
             {
@@ -278,43 +223,113 @@ public class UrlRunnerService
                 StatusCode = 0,
                 Status = "ERROR",
                 ResponseTime = stopwatch.ElapsedMilliseconds,
-                Success = false
+                Success = false,
+                ResponseBody = ex.Message
             };
         }
     }
 
-    private string GetShortUrlName(string url)
+    // =========================================================
+    // PRINT ONE COMPLETE RESULT
+    // =========================================================
+
+    private void PrintResult(
+        UrlResult result,
+        int number)
+    {
+        Console.WriteLine();
+        Console.WriteLine("============================================================");
+        Console.WriteLine($"                        URL #{number}");
+        Console.WriteLine("============================================================");
+
+        Console.WriteLine();
+        Console.WriteLine($"URL            : {result.Url}");
+
+        Console.WriteLine(
+            $"Method         : POST"
+        );
+
+        if (result.StatusCode > 0)
+        {
+            Console.WriteLine(
+                $"Status Code    : {result.StatusCode}"
+            );
+        }
+        else
+        {
+            Console.WriteLine(
+                $"Status Code    : N/A"
+            );
+        }
+
+        Console.WriteLine(
+            $"Status         : {result.Status}"
+        );
+
+        Console.WriteLine(
+            $"Response Time  : {result.ResponseTime} ms"
+        );
+
+        Console.WriteLine(
+            $"Success        : {result.Success}"
+        );
+
+        Console.WriteLine();
+
+        Console.WriteLine(
+            "-------------------- RESPONSE --------------------"
+        );
+
+        if (!string.IsNullOrWhiteSpace(result.ResponseBody))
+        {
+            PrintResponse(result.ResponseBody);
+        }
+        else
+        {
+            Console.WriteLine(
+                "No response body returned."
+            );
+        }
+
+        Console.WriteLine(
+            "---------------------------------------------------"
+        );
+
+        Console.WriteLine();
+    }
+
+    // =========================================================
+    // PRINT RESPONSE
+    // =========================================================
+
+    private void PrintResponse(string responseBody)
     {
         try
         {
-            var uri = new Uri(url);
-            string host = uri.Host;
+            using JsonDocument document =
+                JsonDocument.Parse(responseBody);
 
-            if (host.StartsWith("mwsa."))
-                return "mwsa";
+            string formattedJson =
+                JsonSerializer.Serialize(
+                    document.RootElement,
+                    new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    }
+                );
 
-            if (host.StartsWith("ms."))
-                return "ms";
-
-            if (host.StartsWith("mwsb."))
-                return "mwsb";
-
-            if (host.StartsWith("mwsc."))
-                return "mwsc";
-
-            if (host.StartsWith("mwsf."))
-                return "mwsf";
-
-            if (host.StartsWith("mst."))
-                return "mst";
-
-            return host;
+            Console.WriteLine(formattedJson);
         }
-        catch
+        catch (JsonException)
         {
-            return url;
+            // Response is not JSON
+            Console.WriteLine(responseBody);
         }
     }
+
+    // =========================================================
+    // RESULT MODEL
+    // =========================================================
 
     private class UrlResult
     {
@@ -327,5 +342,7 @@ public class UrlRunnerService
         public long ResponseTime { get; set; }
 
         public bool Success { get; set; }
+
+        public string ResponseBody { get; set; } = string.Empty;
     }
 }
