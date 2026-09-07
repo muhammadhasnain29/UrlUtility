@@ -4,3 +4,12 @@ https://mwsb.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
 https://mwsc.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
 https://mwsf.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
 https://mst.bankalfalah.com/DataServiceCore/Initialize/InitializeApp
+
+https://172.24.194.194/DataServiceCore/Initialize/InitializeApp
+https://172.24.194.200/DataServiceCore/Initialize/InitializeApp
+https://172.24.194.206/DataServiceCore/Initialize/InitializeApp
+https://172.24.194.201/DataServiceCore/Initialize/InitializeApp
+https://172.24.194.202/DataServiceCore/Initialize/InitializeApp
+https://172.24.194.203/DataServiceCore/Initialize/InitializeApp
+https://172.24.194.204/DataServiceCore/Initialize/InitializeApp
+https://mwsf.bankalfalah.com:9085/DataServiceCore/Initialize/InitializeApp

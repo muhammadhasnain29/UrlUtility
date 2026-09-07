@@ -102,9 +102,7 @@ public class UrlRunnerService
             .Select(url => ExecuteUrlAsync(url, requestBody))
             .ToList();
 
-        // IMPORTANT:
-        // We wait for ALL requests first.
-        // Nothing is printed from ExecuteUrlAsync().
+        // Wait for all requests first
         var results = await Task.WhenAll(tasks);
 
         // ==========================================
@@ -152,6 +150,123 @@ public class UrlRunnerService
         string url,
         string requestBody)
     {
+        // =====================================================
+        // FIRST TRY GET
+        // =====================================================
+
+        var getResult = await ExecuteGetAsync(url);
+
+        // =====================================================
+        // IF GET WORKS
+        // USE GET RESULT
+        // =====================================================
+
+        if (getResult.Success)
+        {
+            return getResult;
+        }
+
+        // =====================================================
+        // IF GET DOES NOT WORK
+        // TRY POST
+        // =====================================================
+
+        return await ExecutePostAsync(
+            url,
+            requestBody
+        );
+    }
+
+    // =========================================================
+    // EXECUTE GET
+    // =========================================================
+
+    private async Task<UrlResult> ExecuteGetAsync(string url)
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                url
+            );
+
+            using var response =
+                await _httpClient.SendAsync(request);
+
+            stopwatch.Stop();
+
+            return new UrlResult
+            {
+                Url = url,
+                Method = "GET",
+                StatusCode = (int)response.StatusCode,
+                Status = response.StatusCode.ToString(),
+                ResponseTime = stopwatch.ElapsedMilliseconds,
+                Success = response.IsSuccessStatusCode
+
+                // ResponseBody = responseBody
+            };
+        }
+        catch (TaskCanceledException)
+        {
+            stopwatch.Stop();
+
+            return new UrlResult
+            {
+                Url = url,
+                Method = "GET",
+                StatusCode = 0,
+                Status = "TIMEOUT",
+                ResponseTime = stopwatch.ElapsedMilliseconds,
+                Success = false
+
+                // ResponseBody = "Request timed out."
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            stopwatch.Stop();
+
+            return new UrlResult
+            {
+                Url = url,
+                Method = "GET",
+                StatusCode = 0,
+                Status = "CONNECTION ERROR",
+                ResponseTime = stopwatch.ElapsedMilliseconds,
+                Success = false
+
+                // ResponseBody = ex.Message
+            };
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+
+            return new UrlResult
+            {
+                Url = url,
+                Method = "GET",
+                StatusCode = 0,
+                Status = "ERROR",
+                ResponseTime = stopwatch.ElapsedMilliseconds,
+                Success = false
+
+                // ResponseBody = ex.Message
+            };
+        }
+    }
+
+    // =========================================================
+    // EXECUTE POST
+    // =========================================================
+
+    private async Task<UrlResult> ExecutePostAsync(
+        string url,
+        string requestBody)
+    {
         var stopwatch = Stopwatch.StartNew();
 
         try
@@ -170,19 +285,24 @@ public class UrlRunnerService
             using var response =
                 await _httpClient.SendAsync(request);
 
-            string responseBody =
-                await response.Content.ReadAsStringAsync();
+            // =================================================
+            // RESPONSE BODY
+            // =================================================
+            // string responseBody =
+            //     await response.Content.ReadAsStringAsync();
 
             stopwatch.Stop();
 
             return new UrlResult
             {
                 Url = url,
+                Method = "POST",
                 StatusCode = (int)response.StatusCode,
                 Status = response.StatusCode.ToString(),
                 ResponseTime = stopwatch.ElapsedMilliseconds,
-                Success = response.IsSuccessStatusCode,
-                ResponseBody = responseBody
+                Success = response.IsSuccessStatusCode
+
+                // ResponseBody = responseBody
             };
         }
         catch (TaskCanceledException)
@@ -192,11 +312,13 @@ public class UrlRunnerService
             return new UrlResult
             {
                 Url = url,
+                Method = "POST",
                 StatusCode = 0,
                 Status = "TIMEOUT",
                 ResponseTime = stopwatch.ElapsedMilliseconds,
-                Success = false,
-                ResponseBody = "Request timed out."
+                Success = false
+
+                // ResponseBody = "Request timed out."
             };
         }
         catch (HttpRequestException ex)
@@ -206,11 +328,13 @@ public class UrlRunnerService
             return new UrlResult
             {
                 Url = url,
+                Method = "POST",
                 StatusCode = 0,
                 Status = "CONNECTION ERROR",
                 ResponseTime = stopwatch.ElapsedMilliseconds,
-                Success = false,
-                ResponseBody = ex.Message
+                Success = false
+
+                // ResponseBody = ex.Message
             };
         }
         catch (Exception ex)
@@ -220,11 +344,13 @@ public class UrlRunnerService
             return new UrlResult
             {
                 Url = url,
+                Method = "POST",
                 StatusCode = 0,
                 Status = "ERROR",
                 ResponseTime = stopwatch.ElapsedMilliseconds,
-                Success = false,
-                ResponseBody = ex.Message
+                Success = false
+
+                // ResponseBody = ex.Message
             };
         }
     }
@@ -243,11 +369,17 @@ public class UrlRunnerService
         Console.WriteLine("============================================================");
 
         Console.WriteLine();
+
         Console.WriteLine($"URL            : {result.Url}");
 
+        Console.WriteLine();
+
+        // Actual method will be displayed here
         Console.WriteLine(
-            $"Method         : POST"
+            $"Request Method : {result.Method}"
         );
+
+        Console.WriteLine();
 
         if (result.StatusCode > 0)
         {
@@ -258,42 +390,46 @@ public class UrlRunnerService
         else
         {
             Console.WriteLine(
-                $"Status Code    : N/A"
+                "Status Code    : N/A"
             );
         }
+
+        Console.WriteLine();
 
         Console.WriteLine(
             $"Status         : {result.Status}"
         );
 
-        Console.WriteLine(
-            $"Response Time  : {result.ResponseTime} ms"
-        );
+        Console.WriteLine();
 
         Console.WriteLine(
-            $"Success        : {result.Success}"
+            $"Response Time  : {result.ResponseTime} ms"
         );
 
         Console.WriteLine();
 
         Console.WriteLine(
-            "-------------------- RESPONSE --------------------"
+            $"Success        : {result.Success}"
         );
 
-        if (!string.IsNullOrWhiteSpace(result.ResponseBody))
-        {
-            PrintResponse(result.ResponseBody);
-        }
-        else
-        {
-            Console.WriteLine(
-                "No response body returned."
-            );
-        }
-
-        Console.WriteLine(
-            "---------------------------------------------------"
-        );
+        // =====================================================
+        // RESPONSE BODY
+        // =====================================================
+        // Console.WriteLine();
+        // Console.WriteLine("-------------------- RESPONSE --------------------");
+        //
+        // if (!string.IsNullOrWhiteSpace(result.ResponseBody))
+        // {
+        //     PrintResponse(result.ResponseBody);
+        // }
+        // else
+        // {
+        //     Console.WriteLine("No response body returned.");
+        // }
+        //
+        // Console.WriteLine(
+        //     "---------------------------------------------------"
+        // );
 
         Console.WriteLine();
     }
@@ -302,6 +438,7 @@ public class UrlRunnerService
     // PRINT RESPONSE
     // =========================================================
 
+    /*
     private void PrintResponse(string responseBody)
     {
         try
@@ -326,6 +463,7 @@ public class UrlRunnerService
             Console.WriteLine(responseBody);
         }
     }
+    */
 
     // =========================================================
     // RESULT MODEL
@@ -335,6 +473,8 @@ public class UrlRunnerService
     {
         public string Url { get; set; } = string.Empty;
 
+        public string Method { get; set; } = string.Empty;
+
         public int StatusCode { get; set; }
 
         public string Status { get; set; } = string.Empty;
@@ -343,6 +483,8 @@ public class UrlRunnerService
 
         public bool Success { get; set; }
 
-        public string ResponseBody { get; set; } = string.Empty;
+        // ResponseBody property future use ke liye rakhi ja sakti hai.
+
+        // public string ResponseBody { get; set; } = string.Empty;
     }
 }
