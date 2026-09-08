@@ -101,7 +101,6 @@ public class UrlRunnerService
             .Select(url => ExecuteUrlAsync(url, requestBody))
             .ToList();
 
-        // Wait for all requests first
         var results = await Task.WhenAll(tasks);
 
         // ==========================================
@@ -136,6 +135,37 @@ public class UrlRunnerService
 
         Console.WriteLine();
 
+        // ==========================================
+        // SAVE LOG FILE
+        // ==========================================
+
+        var logger = new LoggerService();
+
+        var logResults = results
+            .Select(x => new LoggerService.UrlLogResult
+            {
+                Date = x.Date,
+                Url = x.Url,
+                Method = x.Method,
+                StatusCode = x.StatusCode,
+                Status = x.Status,
+                ResponseTime = x.ResponseTime,
+                Success = x.Success
+            })
+            .ToList();
+
+        await logger.LogOperationAsync(logResults);
+
+        Console.WriteLine(
+            "Log saved successfully in UrlUtilityLog.txt"
+        );
+
+        Console.WriteLine();
+
+        // ==========================================
+        // COMPLETED
+        // ==========================================
+
         Console.WriteLine("============================================================");
         Console.WriteLine("                  INITIALIZE COMPLETED");
         Console.WriteLine("============================================================");
@@ -151,12 +181,17 @@ public class UrlRunnerService
     {
         var stopwatch = Stopwatch.StartNew();
 
+        DateTime requestDateTime = DateTime.Now;
+
         // =====================================================
         // DECIDE HTTP METHOD FROM URL
         // =====================================================
 
         bool isGetRequest =
-            url.Contains("/service1.svc", StringComparison.OrdinalIgnoreCase);
+            url.Contains(
+                "/service1.svc",
+                StringComparison.OrdinalIgnoreCase
+            );
 
         try
         {
@@ -173,9 +208,11 @@ public class UrlRunnerService
                     url
                 );
             }
+
             // =================================================
             // POST REQUEST
             // =================================================
+
             else
             {
                 request = new HttpRequestMessage(
@@ -198,6 +235,7 @@ public class UrlRunnerService
                 // =================================================
                 // RESPONSE BODY
                 // =================================================
+
                 // string responseBody =
                 //     await response.Content.ReadAsStringAsync();
 
@@ -205,15 +243,19 @@ public class UrlRunnerService
 
                 return new UrlResult
                 {
+                    Date = requestDateTime,
+
                     Url = url,
 
                     Method = isGetRequest
                         ? "GET"
                         : "POST",
 
-                    StatusCode = (int)response.StatusCode,
+                    StatusCode =
+                        (int)response.StatusCode,
 
-                    Status = response.StatusCode.ToString(),
+                    Status =
+                        response.StatusCode.ToString(),
 
                     ResponseTime =
                         stopwatch.ElapsedMilliseconds,
@@ -225,12 +267,19 @@ public class UrlRunnerService
                 };
             }
         }
+
+        // =====================================================
+        // TIMEOUT
+        // =====================================================
+
         catch (TaskCanceledException)
         {
             stopwatch.Stop();
 
             return new UrlResult
             {
+                Date = requestDateTime,
+
                 Url = url,
 
                 Method = isGetRequest
@@ -249,12 +298,19 @@ public class UrlRunnerService
                 // ResponseBody = "Request timed out."
             };
         }
+
+        // =====================================================
+        // CONNECTION ERROR
+        // =====================================================
+
         catch (HttpRequestException ex)
         {
             stopwatch.Stop();
 
             return new UrlResult
             {
+                Date = requestDateTime,
+
                 Url = url,
 
                 Method = isGetRequest
@@ -273,12 +329,19 @@ public class UrlRunnerService
                 // ResponseBody = ex.Message
             };
         }
+
+        // =====================================================
+        // OTHER ERROR
+        // =====================================================
+
         catch (Exception ex)
         {
             stopwatch.Stop();
 
             return new UrlResult
             {
+                Date = requestDateTime,
+
                 Url = url,
 
                 Method = isGetRequest
@@ -361,7 +424,6 @@ public class UrlRunnerService
         // =====================================================
         // RESPONSE BODY
         // =====================================================
-        // Commented out intentionally.
         //
         // Console.WriteLine();
         // Console.WriteLine("-------------------- RESPONSE --------------------");
@@ -419,6 +481,8 @@ public class UrlRunnerService
 
     private class UrlResult
     {
+        public DateTime Date { get; set; }
+
         public string Url { get; set; } = string.Empty;
 
         public string Method { get; set; } = string.Empty;
@@ -431,7 +495,6 @@ public class UrlRunnerService
 
         public bool Success { get; set; }
 
-        // Future use ke liye response body property
         // public string ResponseBody { get; set; } = string.Empty;
     }
 }
