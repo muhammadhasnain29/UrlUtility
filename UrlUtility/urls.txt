@@ -12,4 +12,4 @@ https://172.24.194.201/DataServiceCore/Initialize/InitializeApp
 https://172.24.194.202/DataServiceCore/Initialize/InitializeApp
 https://172.24.194.203/DataServiceCore/Initialize/InitializeApp
 https://172.24.194.204/DataServiceCore/Initialize/InitializeApp
-https://mwsf.bankalfalah.com:9085/DataServiceCore/Initialize/InitializeApp
+https://mwsf.bankalfalah.com:9085/service1.svc
